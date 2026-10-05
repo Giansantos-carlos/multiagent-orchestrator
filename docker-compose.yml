@@ -1,0 +1,59 @@
+services:
+  redis:
+    # redis-stack-server inclui o módulo RediSearch, exigido pelo
+    # langgraph-checkpoint-redis para indexar os checkpoints do grafo.
+    image: redis/redis-stack-server:latest
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mcp-logistics:
+    build:
+      context: ./mcp-servers/logistics
+    ports:
+      - "8001:8001"
+    environment:
+      PORT: "8001"
+
+  mcp-finance:
+    build:
+      context: ./mcp-servers/finance
+    ports:
+      - "8002:8002"
+    environment:
+      PORT: "8002"
+
+  mcp-hr:
+    build:
+      context: ./mcp-servers/hr
+    ports:
+      - "8003:8003"
+    environment:
+      PORT: "8003"
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: orchestrator/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      MCP_LOGISTICS_URL: http://mcp-logistics:8001/mcp
+      MCP_FINANCE_URL: http://mcp-finance:8002/mcp
+      MCP_HR_URL: http://mcp-hr:8003/mcp
+    depends_on:
+      redis:
+        condition: service_healthy
+      mcp-logistics:
+        condition: service_started
+      mcp-finance:
+        condition: service_started
+      mcp-hr:
+        condition: service_started
